@@ -1,0 +1,22 @@
+Proyek Sejarah Indonesia Kelas XI Semester 1 (rebuild)
+=========================================================
+Sumber: bundle production sejarah-xi-semester-1.vercel.app
+        + upload Materi_Sejarah_BAB_III_Strategi_Mempertahankan_Kemerdekaan.txt
+        + gen_content.py (tools/)
+
+Isi:
+- 10 bab (01-08 materi + atlas + evaluasi akhir)
+- 59 topik / sub-bab
+- 113 soal (60 PG, 29 B/S, 24 uraian)
+- 8 gambar ilustrasi baru (webp) + favicon
+- Shell UI bahasa Indonesia, palet live tetap sama
+- BAB III diperkaya dari materi upload (tabel, definisi, terminologi)
+
+Verifikasi:
+- tsc --noEmit: 0 error
+- vite build: 7.16 kB html / 275 kB css / 228 kB js
+- Grading suite: BAB 1/6/7/8 & Evaluasi semua 100 (all-correct),
+  all-wrong=0, persistence reload OK, 0 JS error
+- Screenshot audit: 14 file di qa/
+
+Deploy: upload zip → New Project → Extract → Vite → Deploy
