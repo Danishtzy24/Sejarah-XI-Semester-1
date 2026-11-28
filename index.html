@@ -2,159 +2,41 @@
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f7f5ef">
-  <meta name="description" content="Materi Sejarah Indonesia Kelas XI Semester 1: persiapan kemerdekaan, proklamasi, perjuangan fisik, diplomasi, dan pengakuan kedaulatan. Linimasa visual dan latihan dari modul.">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f1e8">
+  <meta name="description" content="Sejarah Indonesia Kelas XI Semester 1 — ringkasan visual, materi lengkap, peta interaktif, garis waktu, kartu hafalan, dan latihan soal: dari BPUPKI, Proklamasi, perjuangan fisik & diplomasi, sampai pengakuan kedaulatan.">
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
   <title>Sejarah Indonesia — Kelas XI · Semester 1</title>
+  <script>
+    try { var s = JSON.parse(localStorage.getItem('sejarah-xi-v2') || '{}'); var t = s.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
 </head>
 <body>
-  <a class="skip" href="#main">Langsung ke materi</a>
-  <header class="topbar">
-    <div class="container header-inner">
-      <a class="brand" href="#pilihan-bab" aria-label="Sejarah Indonesia, pilihan bab">
-        <span class="brand-symbol">Sj<span>.</span></span>
-        <span>Sejarah Indonesia<small>KELAS XI / SEMESTER 01</small></span>
+  <a class="skip" href="#app">Langsung ke isi</a>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="#/" aria-label="Beranda Sejarah XI">
+        <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#c8302a"/><path d="M11.5 13 20.5 27M20.5 13 11.5 27M28.5 13V27" stroke="#fff" stroke-width="3.4" stroke-linecap="round" fill="none"/></svg>
+        <span class="brand-txt"><b>Sejarah Indonesia</b><small>KELAS XI · SEMESTER 1</small></span>
       </a>
-      <nav class="header-links" aria-label="Navigasi halaman">
-        <a href="#pilihan-bab">Pilihan bab</a>
-        <a href="#materi">Materi</a>
-        <a href="#latihan" class="header-quiz">Latihan <span data-icon="arrow"></span></a>
-      </nav>
-      <a class="home-link" href="https://materi-pelajaran-kelas-xi-semester.vercel.app/" aria-label="Kembali ke website utama">
-        <span data-icon="home"></span>
-        <span>Semua mapel</span>
-      </a>
+      <nav class="nav-links" id="nav-links" aria-label="Navigasi utama"></nav>
+      <div class="nav-tools">
+        <button class="search-btn" id="open-search" aria-label="Cari materi"><span data-i="search"></span><span>Cari materi…</span><kbd>Ctrl K</kbd></button>
+        <button class="icon-btn" id="theme" aria-label="Ganti tema terang/gelap"></button>
+      </div>
     </div>
-    <i id="scroll-progress" aria-hidden="true"></i>
   </header>
 
-  <main id="main" class="container" tabindex="-1">
-    <section id="pilihan-bab" class="collection" aria-labelledby="page-title">
-      <div class="collection-heading">
-        <div>
-          <span class="eyebrow"><i></i> CATATAN PERJALANAN BANGSA</span>
-          <h1 id="page-title">Sejarah <span>Indonesia.</span></h1>
-          <p class="collection-sub">Memahami jalan menuju merdeka — dari perumusan dasar negara hingga pengakuan kedaulatan.</p>
-        </div>
-        <div class="course-facts">
-          <span><b>08</b>bab inti</span>
-          <span><b>59</b>topik</span>
-          <span><b>113</b>bank soal</span>
-        </div>
-      </div>
-      <nav id="chapter-nav" aria-label="Pilihan bab Sejarah Indonesia"></nav>
-      <div class="collection-bottom">
-        <span><span data-icon="book"></span>Materi &amp; linimasa · penjelasan Sejarah Indonesia</span>
-        <button id="evaluasi-launch">Evaluasi Semester <b>25 soal</b><span data-icon="arrow"></span></button>
-      </div>
-    </section>
+  <main id="app" tabindex="-1"></main>
 
-    <section class="chapter-hero" aria-labelledby="chapter-title">
-      <div class="hero-copy">
-        <div class="eyebrow" id="chapter-kicker"></div>
-        <h2 id="chapter-title"></h2>
-        <p id="chapter-subtitle"></p>
-        <div class="hero-example">
-          <span class="example-label">INTI</span>
-          <p id="example-text"></p>
-        </div>
-        <div class="hero-actions">
-          <a class="button primary" href="#materi">Baca materi <span data-icon="arrow-down"></span></a>
-          <a class="hero-practice" href="#latihan">
-            <span data-icon="quiz"></span>
-            <span id="hero-question-count"></span>
-          </a>
-        </div>
-      </div>
-      <div class="hero-scene">
-        <img id="hero-image" src="./assets/arsip-hero.webp" width="1152" height="864" alt="Ilustrasi arsip belajar sejarah" fetchpriority="high" decoding="async">
-        <span class="art-year" aria-hidden="true">1945</span>
-      </div>
-    </section>
+  <nav class="tabbar" id="tabbar" aria-label="Navigasi bawah"></nav>
 
-    <div class="material-toolbar" id="materi">
-      <div>
-        <span class="eyebrow">ISI BAB <span id="material-number">01</span></span>
-        <h2>Daftar sub materi<span>.</span></h2>
-        <span class="toolbar-sub" id="toolbar-sub"></span>
-      </div>
-      <label class="search">
-        <span data-icon="search"></span>
-        <input id="search" type="search" placeholder="Cari topik dalam bab ini…" aria-label="Cari topik dalam bab ini" autocomplete="off">
-        <button type="button" id="search-clear" aria-label="Hapus pencarian" hidden>×</button>
-      </label>
+  <footer>
+    <div class="wrap">
+      <span>Sejarah Indonesia · Kelas XI Semester 1 — by <strong>Danishtzy24</strong></span>
+      <a href="https://materi-pelajaran-kelas-xi-semester.vercel.app/"><span data-i="back"></span>Semua mapel</a>
     </div>
-
-    <div class="course-layout">
-      <aside class="toc-panel" aria-label="Daftar topik">
-        <div class="toc-caption">
-          <span class="eyebrow">DALAM BAB INI</span>
-          <span id="topic-position">01 / 05</span>
-        </div>
-        <div class="toc-readbar" aria-hidden="true"><i id="read-fill"></i></div>
-        <nav id="toc" aria-label="Navigasi topik"></nav>
-        <div class="toc-divider"></div>
-        <a class="toc-quiz" href="#latihan"><span data-icon="quiz"></span>Latihan bab<span data-icon="arrow-down"></span></a>
-        <div class="toc-note">
-          <span data-icon="shuffle"></span>Soal &amp; pilihan diacak<br>
-          <span data-icon="check-circle"></span>Nilai &amp; pembahasan
-        </div>
-      </aside>
-      <div class="lesson-column">
-        <div class="lesson-options">
-          <p id="search-status" role="status" aria-live="polite"></p>
-          <button id="detail-toggle"><span data-icon="expand"></span><span>Buka semua detail</span></button>
-        </div>
-        <div class="lesson-intro" id="chapter-intro"></div>
-        <div id="lesson-content"></div>
-        <div class="search-empty" id="search-empty" hidden>
-          <span data-icon="search"></span>
-          <h3>Topik tidak ditemukan.</h3>
-          <p>Coba kata lain atau tampilkan semua topik.</p>
-          <button class="button secondary" id="search-reset">Tampilkan semua</button>
-        </div>
-        <section id="latihan" class="quiz-section" aria-labelledby="quiz-title">
-          <div class="quiz-heading">
-            <div>
-              <span class="eyebrow"><span data-icon="quiz"></span> UJI PEMAHAMAN</span>
-              <h2 id="quiz-title"></h2>
-            </div>
-            <span class="quiz-count" id="quiz-count"></span>
-          </div>
-          <div id="quiz-workspace"></div>
-        </section>
-        <div class="chapter-end">
-          <div>
-            <span class="eyebrow">AKHIR BAB</span>
-            <h3 id="end-title"></h3>
-          </div>
-          <button class="button secondary" id="next-chapter"></button>
-        </div>
-      </div>
-    </div>
-
-    <footer>
-      <a href="#pilihan-bab" class="footer-brand">Sj<span>.</span><small>XI / 01</small></a>
-      <span>by <strong>Danishtzy24</strong></span>
-    </footer>
-  </main>
-
-  <button id="back-top" aria-label="Kembali ke pilihan bab"><span data-icon="arrow-up"></span></button>
-
-  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description">
-    <div class="confirm-icon"><span data-icon="quiz"></span></div>
-    <h2 id="confirm-title"></h2>
-    <p id="confirm-description"></p>
-    <div class="confirm-actions">
-      <button class="button secondary" id="confirm-cancel">Batal</button>
-      <button class="button primary" id="confirm-accept">Lanjutkan</button>
-    </div>
-  </dialog>
-
-  <noscript>
-    <div class="noscript-note">Aktifkan JavaScript untuk membuka materi dan latihan interaktif.</div>
-  </noscript>
+  </footer>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
