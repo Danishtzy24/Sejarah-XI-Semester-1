@@ -1,11 +1,13 @@
 import { COURSE } from './data/course';
 import { ringkasFor } from './data/ringkas';
-import { TIMELINE, FLASHCARDS, PINS, PIN_KIND, PHASES } from './data/atlas';
+import { TIMELINE, FLASHCARDS, PINS, PIN_KIND, PHASES, partTone, partLabel } from './data/atlas';
+import { questionsBySet } from './data/soal';
 import { renderRingkas } from './blocks';
+import { materiView, mountReader, readerClick } from './reader';
 import { quizView, startQuiz, quizClick, resetQuiz } from './quiz';
-import type { Flashcard, MapPin, TimelineEvent } from './types';
+import type { Flashcard, MapPin, Part, Question, TimelineEvent } from './types';
 import {
-  $, $$, esc, md, icon, hydrateIcons, CHAPTERS, chapterById, toneOf, iconOf, questionsOf, img, pad,
+  $, $$, esc, md, icon, hydrateIcons, chapterById, toneOf, img, pad,
   prefs, savePrefs, shuffle, norm, plain,
 } from './lib';
 import {
@@ -27,11 +29,11 @@ const onDispose = (f: () => void) => disposers.push(f);
    ============================================================= */
 const NAV = [
   { href: '#/', label: 'Beranda', i: 'home', match: /^#\/?$/ },
-  { href: '#/bab', label: 'Materi', i: 'book', match: /^#\/bab/ },
+  { href: '#/bab/3', label: 'Materi', i: 'book', match: /^#\/bab/ },
   { href: '#/timeline', label: 'Timeline', i: 'clock', match: /^#\/timeline/ },
   { href: '#/peta', label: 'Peta', i: 'map', match: /^#\/peta/ },
   { href: '#/kartu', label: 'Kartu', i: 'cards', match: /^#\/kartu/ },
-  { href: '#/ujian', label: 'Ujian', i: 'target', match: /^#\/ujian/ },
+  { href: '#/ujian', label: 'Asesmen', i: 'target', match: /^#\/ujian/ },
 ];
 let navBuilt = false;
 function drawNav() {
@@ -57,52 +59,25 @@ function drawTheme() {
 /* =============================================================
    HOME
    ============================================================= */
-const PHASE_POINTS: Record<string, string[]> = {
-  'Menuju Merdeka': ['Jepang terdesak dan menjanjikan kemerdekaan', 'BPUPKI merumuskan dasar negara Pancasila', 'Rengasdengklok, lalu Proklamasi 17 Agustus 1945'],
-  'Negara Terbentuk': ['PPKI mengesahkan UUD 1945 dan memilih Presiden', 'Kementerian, 8 provinsi, KNIP, dan BKR dibentuk', 'Rakyat dan daerah berdiri di belakang Republik'],
-  'Mempertahankan': ['Sekutu datang membonceng NICA (Belanda)', 'Pertempuran Surabaya, Ambarawa, Bandung, Margarana', 'Linggarjati, Renville, dan dua Agresi Militer'],
-  'Kedaulatan': ['Roem-Royen dan Konferensi Inter-Indonesia', 'Konferensi Meja Bundar di Den Haag', 'Belanda mengakui kedaulatan, 27 Desember 1949'],
+const CH = 3;
+const SECS = () => chapterById(CH)!.sections;
+const secHref = (id: string) => `#/bab/${CH}/materi/${id}`;
+const secTitle = (id: string) => SECS().find(s => s.id === id)?.title ?? '';
+const PART_POINTS: Record<Part, string> = {
+  fisik: 'Sekutu datang membawa NICA. Rakyat melawan di berbagai daerah, lalu menghadapi dua kali agresi Belanda dengan perang gerilya.',
+  diplomasi: 'Indonesia membawa masalahnya ke PBB dan berunding langsung dengan Belanda, sampai kedaulatan diakui pada 27 Desember 1949.',
 };
-const phaseOf = (id: number) => PHASES.find(p => p.chapters.includes(id));
-const intiOf = (id: number) => (ringkasFor(id)?.blocks.find(b => b.type === 'inti') as { items: { title: string }[] } | undefined)?.items ?? [];
 
-/* kartu bab untuk carousel horizontal */
-function chapterCard(id: number) {
-  const ch = chapterById(id)!; const r = ringkasFor(id); const ph = phaseOf(id);
-  return `<a class="chc t-${toneOf(id)}" href="#/bab/${id}">
-    <span class="chc-img">${lazyImg(img(ch.hero))}<span class="chc-no">${pad(id)}</span></span>
-    <span class="chc-body">
-      <span class="chc-meta"><span>${esc(ph?.label ?? '')}</span><span>${esc(ch.subtitle)}</span></span>
-      <span class="chc-title">${esc(ch.fullTitle)}</span>
-      <span class="chc-text">${md(r?.tagline ?? ch.intro)}</span>
-    </span>
-    <span class="chc-foot"><span>${ch.sections.length} subbab &middot; ${questionsOf(id).length} soal</span><span class="go">${icon('arrow')}</span></span>
-  </a>`;
-}
-
-/* baris bab untuk halaman daftar */
-function chapterRow(id: number) {
-  const ch = chapterById(id)!; const r = ringkasFor(id);
-  return `<a class="row t-${toneOf(id)} reveal" href="#/bab/${id}">
-    <span class="row-num">${pad(id)}</span>
-    <span class="row-img">${lazyImg(img(ch.hero))}</span>
-    <span class="row-body">
-      <span class="row-period">${icon(iconOf(id))}${esc(ch.subtitle)}</span>
-      <span class="row-title">${esc(ch.fullTitle)}</span>
-      <span class="row-text">${md(r?.tagline ?? ch.intro)}</span>
-      <span class="row-tags">${intiOf(id).map(i => `<span>${md(i.title)}</span>`).join('')}</span>
-    </span>
-    <span class="row-meta"><span>${ch.sections.length} subbab</span><span>${questionsOf(id).length} soal</span><span class="go">Buka ${icon('arrow')}</span></span>
-  </a>`;
-}
-function chapterList() {
-  return PHASES.map((ph, i) => `
-    <div class="toc-phase t-${ph.tone} reveal"><span class="n">Babak ${i + 1}</span><b>${ph.label}</b><span class="line"></span><span class="r">${ph.range}</span></div>
-    <div class="rows">${ph.chapters.map(chapterRow).join('')}</div>`).join('');
+/* kartu subbab untuk carousel horizontal */
+function secCard(id: string) {
+  const s = SECS().find(x => x.id === id)!; const tone = partTone(s.part!);
+  return `<a class="strip-item sec-item t-${tone}" href="${secHref(s.id)}"><span class="no">${esc(s.number)}</span><span class="d">${esc(s.date ?? '')}</span><b>${esc(s.title)}</b><p>${esc(s.sum ?? '')}</p><span class="tag">${partLabel(s.part!)} ${icon('arrow')}</span></a>`;
 }
 
 function home() {
   const big = TIMELINE.filter(e => e.big);
+  const ch = chapterById(CH)!;
+  const nPg = ch.sections.length;
   onMount(async () => {
     const m = await loadMap(); const host = $('#mini-map'); if (!host) return;
     host.innerHTML = `<svg class="mini-map" viewBox="0 0 ${m.MAP_W} ${m.MAP_H}" aria-hidden="true">${m.ISLAND_PATHS.map(d => `<path d="${d}"/>`).join('')}${PINS.map(p => { const [x, y] = m.proj(p.lon, p.lat); return `<circle cx="${x}" cy="${y}" r="7"/>`; }).join('')}</svg>`;
@@ -112,69 +87,65 @@ function home() {
   <section class="hero">
     <div class="wrap hero-grid">
       <div class="hero-txt">
-        <span class="eyebrow reveal"><span class="dot"></span>Kelas XI &middot; Semester 1</span>
-        <h1 class="reveal">Dari janji Jepang sampai Indonesia <em>berdaulat</em></h1>
+        <span class="eyebrow reveal"><span class="dot"></span>Sejarah Indonesia &middot; Kelas XI &middot; Bab III</span>
+        <h1 class="reveal">Strategi mempertahankan <em>kemerdekaan</em></h1>
         <div class="hero-cta reveal">
-          <a class="btn btn-primary btn-lg" href="#/bab/1">${icon('play')} Mulai dari Bab 1</a>
-          <a class="btn btn-ghost btn-lg" href="#/bab">${icon('list')} Lihat semua bab</a>
+          <a class="btn btn-primary btn-lg" href="#/bab/${CH}">${icon('play')} Mulai belajar</a>
+          <a class="btn btn-ghost btn-lg" href="#/ujian">${icon('target')} Kerjakan asesmen</a>
         </div>
-        <ol class="steps reveal" aria-label="Urutan belajar setiap bab">
+        <ol class="steps reveal" aria-label="Urutan belajar">
           <li><span class="n">1</span><span><b>Ringkas</b><small>Poin inti bab</small></span></li>
-          <li><span class="n">2</span><span><b>Materi</b><small>Penjelasan lengkap</small></span></li>
-          <li><span class="n">3</span><span><b>Latihan</b><small>Soal &amp; pembahasan</small></span></li>
+          <li><span class="n">2</span><span><b>Materi</b><small>${nPg} subbab</small></span></li>
+          <li><span class="n">3</span><span><b>Latihan</b><small>Soal asesmen</small></span></li>
         </ol>
       </div>
       <div class="hero-art reveal">
         <div class="frame">${lazyImg(img('arsip-hero'), 'Ilustrasi arsip perjuangan kemerdekaan: buku, radio, pena, dan bendera Merah Putih', '', true)}</div>
-        <div class="stamp"><span class="flag" aria-hidden="true"><i></i><i></i></span><div><b>17 Agustus 1945</b><small>Proklamasi</small></div></div>
+        <div class="stamp"><span class="flag" aria-hidden="true"><i></i><i></i></span><div><b>10 November 1945</b><small>Pertempuran Surabaya</small></div></div>
         <div class="stamp2"><span>${icon('award')}</span><div><b>27 Desember 1949</b><small>Pengakuan kedaulatan</small></div></div>
       </div>
     </div>
     <div class="wrap"><dl class="facts reveal">
-      <div><dt>8</dt><dd>Bab materi</dd></div>
-      <div><dt>${COURSE.counts.sections}</dt><dd>Subbab</dd></div>
-      <div><dt>${COURSE.counts.questions}</dt><dd>Soal latihan</dd></div>
+      <div><dt>2</dt><dd>Jalur perjuangan</dd></div>
+      <div><dt>${nPg}</dt><dd>Subbab</dd></div>
+      <div><dt>${COURSE.counts.questions}</dt><dd>Soal asesmen</dd></div>
       <div><dt>${FLASHCARDS.length}</dt><dd>Kartu hafalan</dd></div>
       <div><dt>${PINS.length}</dt><dd>Lokasi di peta</dd></div>
     </dl></div>
   </section>
 
   <section class="wrap sec" id="gambaran">
-    <div class="sec-head reveal"><div><span class="eyebrow"><span class="dot"></span>Alur besar</span><h2>Empat babak, 1944&ndash;1950</h2></div></div>
-    <ol class="era">${PHASES.map((ph, i) => `
+    <div class="sec-head reveal"><div><span class="eyebrow"><span class="dot"></span>Peta konsep</span><h2>Dua jalur, satu tujuan</h2></div></div>
+    <ol class="era era-2">${PHASES.map((ph, i) => `
       <li class="era-col t-${ph.tone} reveal">
-        <div class="era-top"><span class="era-n">${pad(i + 1)}</span></div>
+        <div class="era-top"><span class="era-n">${'AB'[i]}</span></div>
         <span class="era-range">${ph.range}</span>
         <h3>${ph.label}</h3>
-        <ul>${PHASE_POINTS[ph.id].map(p => `<li>${esc(p)}</li>`).join('')}</ul>
-        <div class="era-links">${ph.chapters.map(c => `<a href="#/bab/${c}">Bab ${c}</a>`).join('')}</div>
+        <p class="era-p">${esc(PART_POINTS[ph.id])}</p>
+        <div class="era-links">${ch.sections.filter(s => s.part === ph.id && s.number.includes('.')).map(s => `<a href="${secHref(s.id)}">${esc(s.title.replace(/^(Pertempuran|Perjanjian|Perundingan) /, ''))}</a>`).join('')}</div>
       </li>`).join('')}</ol>
   </section>
 
-  <section class="sec sec-bleed" id="daftar-bab">
-    <div class="wrap sec-head reveal"><div><span class="eyebrow"><span class="dot"></span>Daftar bab</span><h2>Delapan bab, berurutan</h2></div><a class="btn btn-ghost btn-sm" href="#/bab">Tampilan daftar ${icon('list')}</a></div>
-    <div class="reveal">${hscroll(CHAPTERS.map(c => chapterCard(c.id)).join(''), { label: 'Daftar bab', cls: 'hs-bleed' })}</div>
-  </section>
+  ${PHASES.map(ph => `<section class="sec sec-bleed">
+    <div class="wrap sec-head reveal"><div><span class="eyebrow"><span class="dot"></span>Bagian ${ph.id === 'fisik' ? 'A' : 'B'}</span><h2>${ph.label}</h2></div><a class="btn btn-ghost btn-sm" href="${secHref(ph.sec)}">Baca dari awal ${icon('arrow')}</a></div>
+    <div class="reveal">${hscroll(ch.sections.filter(s => s.part === ph.id).map(s => secCard(s.id)).join(''), { label: ph.label, cls: 'hs-bleed' })}</div>
+  </section>`).join('')}
 
   <section class="sec sec-bleed">
-    <div class="wrap sec-head reveal"><div><span class="eyebrow"><span class="dot"></span>Tanggal penting</span><h2>Yang paling sering keluar di ujian</h2></div><a class="btn btn-ghost btn-sm" href="#/timeline">Timeline lengkap ${icon('arrow')}</a></div>
-    <div class="reveal">${hscroll(big.map(e => `<a class="strip-item t-${toneOf(e.chapter)}" href="#/bab/${e.chapter}"><span class="d">${esc(e.date)}</span><b>${esc(e.title)}</b><p>${esc(e.text)}</p><span class="tag">Bab ${e.chapter} ${icon('arrow')}</span></a>`).join(''), { label: 'Tanggal penting', cls: 'hs-bleed' })}</div>
+    <div class="wrap sec-head reveal"><div><span class="eyebrow"><span class="dot"></span>Tanggal penting</span><h2>Yang paling sering ditanyakan</h2></div><a class="btn btn-ghost btn-sm" href="#/timeline">Timeline lengkap ${icon('arrow')}</a></div>
+    <div class="reveal">${hscroll(big.map(e => `<a class="strip-item t-${partTone(e.phase)}" href="${secHref(e.sec)}"><span class="d">${esc(e.date)}</span><b>${esc(e.title)}</b><p>${esc(e.text)}</p><span class="tag">${partLabel(e.phase)} ${icon('arrow')}</span></a>`).join(''), { label: 'Tanggal penting', cls: 'hs-bleed' })}</div>
   </section>
 
   <section class="wrap sec">
     <div class="sec-head reveal"><div><span class="eyebrow"><span class="dot"></span>Alat belajar</span><h2>Ulangi materi dengan cara lain</h2></div></div>
     <div class="tools">
-      <a class="tool big t-blue reveal" href="#/peta"><span class="mini-wrap" id="mini-map"></span><div><span class="ti">${icon('map')}</span><h3>Peta perjuangan</h3><p>${PINS.length} lokasi peristiwa, dari Aceh sampai Biak.</p></div><span class="arrow">${icon('arrow')}</span></a>
+      <a class="tool big t-blue reveal" href="#/peta"><span class="mini-wrap" id="mini-map"></span><div><span class="ti">${icon('map')}</span><h3>Peta perjuangan</h3><p>${PINS.length} lokasi, dari Medan sampai Surabaya.</p></div><span class="arrow">${icon('arrow')}</span></a>
       <a class="tool t-amber reveal" href="#/timeline"><div><span class="ti">${icon('clock')}</span><h3>Garis waktu</h3><p>${TIMELINE.length} peristiwa berurutan.</p></div><span class="arrow">${icon('arrow')}</span></a>
       <a class="tool t-violet reveal" href="#/kartu"><div><span class="ti">${icon('cards')}</span><h3>Kartu hafalan</h3><p>Tokoh, istilah, dan tanggal.</p></div><span class="arrow">${icon('arrow')}</span></a>
-      <a class="tool t-red reveal" href="#/ujian"><div><span class="ti">${icon('target')}</span><h3>Ujian semester</h3><p>${questionsOf(10).length} soal dari semua bab.</p></div><span class="arrow">${icon('arrow')}</span></a>
-      <a class="tool t-teal reveal" href="#/atlas"><div><span class="ti">${icon('table')}</span><h3>Tabel &amp; glosarium</h3><p>Rekap dan kamus istilah.</p></div><span class="arrow">${icon('arrow')}</span></a>
+      <a class="tool t-teal reveal" href="#/bab/${CH}"><div><span class="ti">${icon('layers')}</span><h3>Ringkasan visual</h3><p>Tabel perundingan, tokoh, dan hal yang sering tertukar.</p></div><span class="arrow">${icon('arrow')}</span></a>
+      <a class="tool t-red reveal" href="#/ujian"><div><span class="ti">${icon('target')}</span><h3>Asesmen</h3><p>Soal perjuangan bersenjata dan diplomasi.</p></div><span class="arrow">${icon('arrow')}</span></a>
     </div>
   </section></div>`;
-}
-
-function babList() {
-  return `<div class="view wrap"><header class="page-head reveal"><span class="eyebrow"><span class="dot"></span>Materi</span><h1>Semua bab</h1><p>Urut dari persiapan kemerdekaan sampai pengakuan kedaulatan.</p></header><div class="sec">${chapterList()}</div></div>`;
 }
 
 /* =============================================================
@@ -185,7 +156,7 @@ function chapterBody(n: number, tab: Tab) {
   const r = ringkasFor(n);
   if (tab === 'ringkas' && r) return renderRingkas(r, n);
   if (tab === 'materi') return materi(n);
-  return quizView('bab-' + n, `Latihan Bab ${n}`, questionsOf(n), toneOf(n));
+  return asesmen();
 }
 function chapterTabs(n: number, tab: Tab) {
   const ch = chapterById(n)!;
@@ -194,21 +165,19 @@ function chapterTabs(n: number, tab: Tab) {
   return `<nav class="tabs" id="ch-tabs" aria-label="Bagian bab">
     ${t('ringkas', `#/bab/${n}`, 1, 'Ringkas', 'poin inti')}
     ${t('materi', `#/bab/${n}/materi`, 2, 'Materi', `${ch.sections.length} subbab`)}
-    ${t('latihan', `#/bab/${n}/latihan`, 3, 'Latihan', `${questionsOf(n).length} soal`)}
+    ${t('latihan', `#/bab/${n}/latihan`, 3, 'Latihan', `${COURSE.questions.length} soal`)}
   </nav>`;
 }
 function chapter(n: number, tab: Tab) {
-  const ch = chapterById(n); if (!ch || n > 8) return notFound();
+  const ch = chapterById(n); if (!ch) return notFound();
   const r = ringkasFor(n); const tone = toneOf(n);
-  const prev = n > 1 ? chapterById(n - 1) : undefined, next = n < 8 ? chapterById(n + 1) : undefined;
-  onMount(() => { centerInTrack($('.ch-switch a[aria-current="page"]')); moveIndicator($('#ch-tabs'), 'a[aria-current="true"]', true); });
+  onMount(() => { moveIndicator($('#ch-tabs'), 'a[aria-current="true"]', true); });
   return `<div class="view t-${tone}" data-ch="${n}">
   <div class="wrap">
-    <div class="ch-switch">${hscroll(CHAPTERS.map(c => `<a class="t-${toneOf(c.id)}" href="#/bab/${c.id}${tab !== 'ringkas' ? '/' + tab : ''}" ${c.id === n ? 'aria-current="page"' : ''}><span class="k">${pad(c.id)}</span>${esc(c.title)}</a>`).join(''), { label: 'Pindah bab', controls: false })}</div>
     <section class="ch-hero">
       <div class="txt">
-        <nav class="crumbs" aria-label="Lokasi"><a href="#/">Beranda</a>${icon('arrow')}<a href="#/bab">Materi</a>${icon('arrow')}<span>Bab ${n}</span></nav>
-        <div class="bignum"><span class="tagno">Bab ${n}</span><span>${esc(ch.subtitle)}</span><span class="sep"></span><span>${esc(r?.phase ?? '')}</span></div>
+        <nav class="crumbs" aria-label="Lokasi"><a href="#/">Beranda</a>${icon('arrow')}<span>Bab III</span></nav>
+        <div class="bignum"><span class="tagno">Bab III</span><span>${esc(ch.subtitle)}</span><span class="sep"></span><span>${esc(r?.phase ?? '')}</span></div>
         <h1>${esc(ch.fullTitle)}</h1>
         <p class="tagline">${md(r?.tagline ?? ch.intro)}</p>
         <div class="q"><span class="qi">${icon('quiz')}</span><div><small>Pertanyaan kunci</small><p>${esc(r?.pertanyaan ?? ch.intro)}</p></div></div>
@@ -217,30 +186,34 @@ function chapter(n: number, tab: Tab) {
     </section>
     ${chapterTabs(n, tab)}
     <div id="ch-body">${chapterBody(n, tab)}</div>
-    <nav class="next-ch" aria-label="Bab lain">
-      ${prev ? `<a href="#/bab/${prev.id}"><small>${icon('back')} Bab ${prev.id}</small><b>${esc(prev.fullTitle)}</b></a>` : `<a href="#/"><small>${icon('back')} Kembali</small><b>Beranda</b></a>`}
-      ${next ? `<a class="n" href="#/bab/${next.id}"><small>Bab ${next.id} ${icon('arrow')}</small><b>${esc(next.fullTitle)}</b></a>` : `<a class="n" href="#/ujian"><small>Selanjutnya ${icon('arrow')}</small><b>Ujian akhir semester</b></a>`}
+    <nav class="next-ch" aria-label="Halaman lain">
+      <a href="#/timeline"><small>${icon('clock')} Ulangi urutannya</small><b>Garis waktu peristiwa</b></a>
+      <a class="n" href="#/kartu"><small>Hafalkan ${icon('arrow')}</small><b>Kartu tokoh, istilah, dan tanggal</b></a>
     </nav>
   </div></div>`;
 }
 
-function materi(n: number) {
-  const ch = chapterById(n)!;
-  return `<div class="lk">
-    <aside class="lk-side cs-host">
-      <details class="lk-toc" ${innerWidth > 980 ? 'open' : ''}>
-        <summary><span>${icon('list')} Daftar subbab</span><small>${ch.sections.length} bagian</small>${icon('down', 'ico chev')}</summary>
-        <nav>${ch.sections.map(s => `<a href="#/bab/${n}/materi/${s.id}" data-sec="${s.id}"><span class="no">${esc(s.number)}</span><span>${esc(s.title)}</span></a>`).join('')}</nav>
-      </details>
-    </aside>
-    <div class="lk-sections">${ch.sections.map((s, i) => `
-      <article class="sec-card reveal" id="s-${s.id}">
-        <header class="sec-h"><span class="no">${esc(s.number)}</span><h2>${esc(s.title)}</h2>${s.extra ? '<span class="extra">Pendalaman</span>' : ''}</header>
-        <div class="sec-b prose">${s.lead}${s.details.map(d => `<details><summary>${esc(d.title)}</summary><div class="detail-content">${d.html}</div></details>`).join('')}</div>
-        ${i < ch.sections.length - 1 ? `<footer class="sec-f"><a href="#/bab/${n}/materi/${ch.sections[i + 1].id}">Berikutnya: ${esc(ch.sections[i + 1].title)} ${icon('arrow')}</a></footer>` : ''}
-      </article>`).join('')}
-      <div class="rk-end reveal"><div><span class="eyebrow light">Akhir materi</span><b>Lanjut ke latihan</b><p>${questionsOf(n).length} soal Bab ${n} dengan pembahasan.</p></div><div class="btns"><a class="btn btn-primary" href="#/bab/${n}/latihan">${icon('target')} Mulai latihan</a></div></div>
-    </div></div>`;
+const materi = (n: number) => materiView(n);
+
+/* =============================================================
+   ASESMEN (dipakai di tab Latihan dan halaman Asesmen)
+   ============================================================= */
+type QSet = Part | 'acak';
+let qset: QSet = 'fisik';
+const ACAK_N = 25;
+const SETS: Record<QSet, { label: string; title: string; tone: string; qs: () => Question[] }> = {
+  fisik: { label: 'Perjuangan bersenjata', title: 'Asesmen Perjuangan Bersenjata', tone: 'red', qs: () => questionsBySet('fisik') },
+  diplomasi: { label: 'Perjuangan diplomasi', title: 'Asesmen Perjuangan Diplomasi', tone: 'blue', qs: () => questionsBySet('diplomasi') },
+  acak: { label: 'Campuran acak', title: `Campuran acak ${ACAK_N} soal`, tone: 'violet', qs: () => shuffle(COURSE.questions.filter(q => q.kind === 'mcq')).slice(0, ACAK_N) },
+};
+function setView() { const S = SETS[qset]; return quizView(qset, S.title, S.qs(), S.tone); }
+function asesmen() {
+  const cnt = (k: QSet) => (k === 'acak' ? `${ACAK_N} soal` : `${SETS[k].qs().length} soal`);
+  return `<div class="qset">
+    <div class="seg qset-seg">${hscroll((Object.keys(SETS) as QSet[]).map(k => `<button class="t-${SETS[k].tone}" data-act="qset" data-v="${k}" aria-pressed="${qset === k}"><i></i>${SETS[k].label} <small>${cnt(k)}</small></button>`).join(''), { label: 'Pilih paket soal', controls: false })}</div>
+    <p class="qset-note">Soal diambil dari lembar asesmen modul Bab III. Modul tidak menyertakan kunci pilihan ganda, jadi kunci dan pembahasan di sini disusun dari isi materi.</p>
+    <div id="qset-body">${setView()}</div>
+  </div>`;
 }
 
 /* =============================================================
@@ -258,7 +231,7 @@ function tlRows(): TLRow[] {
 }
 const tlRow = (r: TLRow) => r.t === 'y'
   ? `<div class="year-mark"><span>${r.year}</span></div>`
-  : `<a class="tl-ev ${r.side} t-${toneOf(r.e.chapter)}${r.e.big ? ' big' : ''}" href="#/bab/${r.e.chapter}"><div class="card"><span class="d">${esc(r.e.date)}</span><b>${esc(r.e.title)}</b><p>${esc(r.e.text)}</p><span class="go">Bab ${r.e.chapter} ${icon('arrow')}</span></div></a>`;
+  : `<a class="tl-ev ${r.side} t-${partTone(r.e.phase)}${r.e.big ? ' big' : ''}" href="${secHref(r.e.sec)}"><div class="card"><span class="d">${esc(r.e.date)}</span><b>${esc(r.e.title)}</b><p>${esc(r.e.text)}</p><span class="go">${esc(secTitle(r.e.sec))} ${icon('arrow')}</span></div></a>`;
 let tlList: VList<TLRow> | null = null;
 function timeline() {
   onMount(() => {
@@ -267,17 +240,17 @@ function timeline() {
     onDispose(() => { tlList?.destroy(); tlList = null; });
   });
   return `<div class="view wrap">
-    <header class="page-head reveal"><span class="eyebrow"><span class="dot"></span>Garis waktu</span><h1>Peristiwa <span style="white-space:nowrap">1944&ndash;1950</span></h1><p>Kartu bergaris warna adalah peristiwa kunci. Klik kartu untuk membuka babnya.</p></header>
+    <header class="page-head reveal"><span class="eyebrow"><span class="dot"></span>Garis waktu</span><h1>Peristiwa <span style="white-space:nowrap">1945&ndash;1949</span></h1><p>Merah untuk perjuangan fisik, biru untuk diplomasi. Kartu bergaris tebal adalah peristiwa kunci. Klik kartu untuk membuka materinya.</p></header>
     <div class="filters reveal">${hscroll(`<button data-act="tl" data-v="all" aria-pressed="${tlFilter === 'all'}">Semua <small>${TIMELINE.length}</small></button>
-      ${PHASES.map(p => `<button class="t-${p.tone}" data-act="tl" data-v="${p.id}" aria-pressed="${tlFilter === p.id}"><i></i>${p.label} <small>${TIMELINE.filter(e => e.phase === p.id).length}</small></button>`).join('')}`, { label: 'Filter babak', controls: false })}</div>
+      ${PHASES.map(p => `<button class="t-${p.tone}" data-act="tl" data-v="${p.id}" aria-pressed="${tlFilter === p.id}"><i></i>${p.label} <small>${TIMELINE.filter(e => e.phase === p.id).length}</small></button>`).join('')}`, { label: 'Filter jalur perjuangan', controls: false })}</div>
     <div class="big-tl" id="tl-list"></div></div>`;
 }
 
 /* =============================================================
    MAP (modul peta dimuat saat dibutuhkan)
    ============================================================= */
-let pinSel = 'jakarta';
-const MINOR = new Set(['rengasdengklok', 'bandung', 'linggarjati', 'ambarawa']);
+let pinSel = 'surabaya';
+const MINOR = new Set(['berandan', 'brastagi', 'linggarjati', 'ambarawa']);
 const pinOff = new Set<string>();
 async function mapSVG() {
   const { ISLAND_PATHS, NEIGHBOR_PATH, MAP_W, MAP_H, proj } = await loadMap();
@@ -300,7 +273,7 @@ async function mapSVG() {
 }
 function pinDetail(p: MapPin) {
   const k = PIN_KIND[p.kind];
-  return `<div class="pin-detail" style="--pc:${k.color}"><span class="k"><i></i>${k.label}</span><h3>${esc(p.title)}</h3><span class="d">${icon('pin')} ${esc(p.name)} &middot; ${esc(p.date)}</span><p>${esc(p.text)}</p><a class="btn btn-dark btn-sm" href="#/bab/${p.chapter}">Buka Bab ${p.chapter} ${icon('arrow')}</a></div>`;
+  return `<div class="pin-detail" style="--pc:${k.color}"><span class="k"><i></i>${k.label}</span><h3>${esc(p.title)}</h3><span class="d">${icon('pin')} ${esc(p.name)} &middot; ${esc(p.date)}</span><p>${esc(p.text)}</p><a class="btn btn-dark btn-sm" href="${secHref(p.sec)}">Baca materinya ${icon('arrow')}</a></div>`;
 }
 const pinRow = (p: MapPin) => `<button data-act="pin" data-id="${p.id}" class="${p.id === pinSel ? 'on' : ''}${pinOff.has(p.kind) ? ' off' : ''}" style="--pc:${PIN_KIND[p.kind].color}"><i></i><span><b>${esc(p.name)}</b> ${esc(p.title)}</span><small>${esc((p.date.match(/\d{4}/g) ?? ['']).pop()!)}</small></button>`;
 let pinList: VList<MapPin> | null = null;
@@ -317,7 +290,7 @@ function peta() {
     onDispose(() => { pinList?.destroy(); pinList = null; });
   });
   return `<div class="view wrap">
-    <header class="page-head reveal"><span class="eyebrow"><span class="dot"></span>Peta interaktif</span><h1>Perjuangan di seluruh Nusantara</h1><p>Pilih titik di peta atau di daftar untuk membaca peristiwanya.</p></header>
+    <header class="page-head reveal"><span class="eyebrow"><span class="dot"></span>Peta interaktif</span><h1>Peta perjuangan 1945&ndash;1949</h1><p>Pilih titik di peta atau di daftar untuk membaca peristiwanya.</p></header>
     <div class="map-layout">
       <div>
         <div class="map-box cs-host"><div class="map-view" id="map-box"><div class="map-skel" aria-hidden="true"></div></div></div>
@@ -334,9 +307,9 @@ function peta() {
    FLASHCARDS (per sesi, tanpa penyimpanan)
    ============================================================= */
 const DECK: Record<Flashcard['deck'], { label: string; i: string }> = { tokoh: { label: 'Tokoh', i: 'user' }, istilah: { label: 'Istilah', i: 'type' }, tanggal: { label: 'Tanggal', i: 'calendar' } };
-const FC = { deck: 'all' as 'all' | Flashcard['deck'], ch: 0, queue: [] as Flashcard[], i: 0, flip: false, known: new Set<string>(), unknown: [] as Flashcard[] };
+const FC = { deck: 'all' as 'all' | Flashcard['deck'], part: '' as '' | Part, queue: [] as Flashcard[], i: 0, flip: false, known: new Set<string>(), unknown: [] as Flashcard[] };
 const cardKey = (c: Flashcard) => c.deck + ':' + c.front;
-function deckCards() { return FLASHCARDS.filter(c => (FC.deck === 'all' || c.deck === FC.deck) && (!FC.ch || c.chapter === FC.ch)); }
+function deckCards() { return FLASHCARDS.filter(c => (FC.deck === 'all' || c.deck === FC.deck) && (!FC.part || c.part === FC.part)); }
 function buildDeck(doShuffle = false, only?: Flashcard[]) {
   let list = only ?? deckCards();
   if (doShuffle) list = shuffle(list);
@@ -348,9 +321,9 @@ function fcStage(dir = 0) {
   const c = FC.queue[FC.i];
   if (!c) return `<div class="fc-done"><span class="qz-badge">${icon('trophy')}</span><h2>Satu putaran selesai</h2><p>${FC.known.size} kartu sudah hafal, ${FC.unknown.length} kartu perlu diulang.</p><div class="row-c">${FC.unknown.length ? `<button class="btn btn-primary" data-act="fc-retry">${icon('repeat')} Ulangi ${FC.unknown.length} kartu</button>` : ''}<button class="btn btn-ghost" data-act="fc-again">${icon('shuffle')} Mulai lagi</button></div></div>`;
   return `
-    <div class="fc-stage"><div class="fc t-${toneOf(c.chapter)}${FC.flip ? ' flip' : ''}${dir ? ' enter' + (dir > 0 ? ' from-r' : ' from-l') : ''}" id="fc" data-act="fc-flip" role="button" tabindex="0" aria-label="Kartu: ${esc(c.front)}. Klik untuk membalik.">
-      <div class="fc-face fc-front"><span class="deck">${icon(DECK[c.deck].i)}${DECK[c.deck].label}</span><span class="ch">Bab ${c.chapter}</span><h2>${esc(c.front)}</h2><span class="hint">${icon('flip')} Ketuk untuk membalik</span></div>
-      <div class="fc-face fc-back"><span class="deck">${icon(DECK[c.deck].i)}${DECK[c.deck].label}</span><span class="ch">Bab ${c.chapter}</span><span class="front-mini">${esc(c.front)}</span><p>${md(c.back)}</p><span class="hint">Sudah hafal?</span></div>
+    <div class="fc-stage"><div class="fc t-${partTone(c.part)}${FC.flip ? ' flip' : ''}${dir ? ' enter' + (dir > 0 ? ' from-r' : ' from-l') : ''}" id="fc" data-act="fc-flip" role="button" tabindex="0" aria-label="Kartu: ${esc(c.front)}. Klik untuk membalik.">
+      <div class="fc-face fc-front"><span class="deck">${icon(DECK[c.deck].i)}${DECK[c.deck].label}</span><span class="ch">${partLabel(c.part)}</span><h2>${esc(c.front)}</h2><span class="hint">${icon('flip')} Ketuk untuk membalik</span></div>
+      <div class="fc-face fc-back"><span class="deck">${icon(DECK[c.deck].i)}${DECK[c.deck].label}</span><span class="ch">${partLabel(c.part)}</span><span class="front-mini">${esc(c.front)}</span><p>${md(c.back)}</p><span class="hint">Sudah hafal?</span></div>
     </div></div>
     <div class="fc-actions"><button class="btn btn-no" data-act="fc-no">${icon('x')} Belum hafal</button><button class="btn btn-ghost icon-only" data-act="fc-flip" aria-label="Balik kartu">${icon('flip')}</button><button class="btn btn-yes" data-act="fc-yes">${icon('check')} Sudah hafal</button></div>
     <div class="fc-meta"><span>Kartu ${FC.i + 1} dari ${total}</span><div class="bar"><i style="width:${(FC.i / total) * 100}%"></i></div><span class="kbd-hint">Spasi untuk membalik &middot; panah kiri: belum &middot; panah kanan: sudah</span></div>`;
@@ -361,7 +334,7 @@ function kartu() {
     <div class="fc-bar">
       <div class="seg">${hscroll(`<button data-act="fc-deck" data-v="all" aria-pressed="${FC.deck === 'all'}">Semua</button>${(Object.keys(DECK) as Flashcard['deck'][]).map(d => `<button data-act="fc-deck" data-v="${d}" aria-pressed="${FC.deck === d}">${icon(DECK[d].i)}${DECK[d].label}</button>`).join('')}`, { label: 'Pilih dek', controls: false })}</div>
       <div class="fc-tools">
-        <label class="select">${icon('book')}<select id="fc-ch" aria-label="Filter bab"><option value="0">Semua bab</option>${CHAPTERS.map(c => `<option value="${c.id}" ${FC.ch === c.id ? 'selected' : ''}>Bab ${c.id} &middot; ${esc(c.title)}</option>`).join('')}</select></label>
+        <label class="select">${icon('book')}<select id="fc-ch" aria-label="Filter jalur perjuangan"><option value="">Fisik dan diplomasi</option>${PHASES.map(p => `<option value="${p.id}" ${FC.part === p.id ? 'selected' : ''}>${p.label}</option>`).join('')}</select></label>
         <button class="btn btn-ghost btn-sm" data-act="fc-again">${icon('shuffle')} Acak</button>
       </div>
     </div>
@@ -376,38 +349,12 @@ function fcMark(known: boolean) {
 function fcFlip() { FC.flip = !FC.flip; $('#fc')?.classList.remove('enter'); $('#fc')?.classList.toggle('flip', FC.flip); }
 
 /* =============================================================
-   ATLAS (tabel bab 9 + glosarium virtual)
-   ============================================================= */
-type Gl = Flashcard;
-let glList: VList<Gl> | null = null;
-const GL = () => FLASHCARDS.filter(c => c.deck === 'istilah');
-const glRow = (g: Gl) => `<div class="gl"><b>${esc(g.front)}</b><p>${esc(g.back)}</p><a href="#/bab/${g.chapter}">Bab ${g.chapter} ${icon('arrow')}</a></div>`;
-function atlas() {
-  const ch9 = chapterById(9);
-  const gl = GL();
-  onMount(() => {
-    const v = $('#gl-view'); if (!v) return;
-    glList = new VList<Gl>({ host: v, scroller: v, items: gl, render: glRow, estimate: () => (innerWidth < 640 ? 96 : 64), gap: 8, overscan: 300 });
-    attachScrollbar(v, 'y');
-    onDispose(() => { glList?.destroy(); glList = null; });
-  });
-  return `<div class="view wrap t-teal">
-    <header class="page-head reveal"><span class="eyebrow"><span class="dot"></span>Rekap</span><h1>Tabel dan glosarium</h1><p>Tabel ringkasan seluruh materi dan kamus istilah dalam satu halaman.</p></header>
-    <div class="lk-sections solo">${(ch9?.sections ?? []).map(s => `<article class="sec-card reveal" id="s-${s.id}"><header class="sec-h"><span class="no">${icon('table')}</span><h2>${esc(s.title)}</h2></header><div class="sec-b prose">${s.lead}</div></article>`).join('')}</div>
-    <div class="sec-head reveal" style="margin-top:56px"><div><span class="eyebrow"><span class="dot"></span>Glosarium</span><h2>${gl.length} istilah penting</h2></div><label class="searchbox">${icon('search')}<input id="gl-q" placeholder="Saring istilah" aria-label="Saring istilah"></label></div>
-    <div class="glossary cs-host reveal"><div class="gl-view" id="gl-view"></div><p class="gl-empty" id="gl-empty" hidden>Istilah tidak ditemukan.</p></div></div>`;
-}
-
-/* =============================================================
-   UJIAN
+   ASESMEN (halaman)
    ============================================================= */
 function ujian() {
-  const ch = chapterById(10)!;
   return `<div class="view wrap t-red">
-    <header class="page-head reveal"><span class="eyebrow"><span class="dot"></span>Evaluasi</span><h1>${esc(ch.fullTitle)}</h1><p>Soal campuran dari seluruh bab: pilihan ganda, benar atau salah, dan uraian.</p></header>
-    ${quizView('ujian', 'Ujian Akhir Semester', questionsOf(10), 'red')}
-    <div class="sec-head reveal" style="margin-top:64px"><div><span class="eyebrow"><span class="dot"></span>Latihan per bab</span><h2>Pemanasan per bab</h2></div></div>
-    <div class="practice">${CHAPTERS.map(c => `<a class="pr t-${toneOf(c.id)} reveal" href="#/bab/${c.id}/latihan"><span class="pi">${icon(iconOf(c.id))}</span><span class="pb"><small>Bab ${c.id} &middot; ${questionsOf(c.id).length} soal</small><b>${esc(c.title)}</b></span>${icon('arrow')}</a>`).join('')}</div>
+    <header class="page-head reveal"><span class="eyebrow"><span class="dot"></span>Evaluasi Bab III</span><h1>Asesmen</h1><p>Pilih paket soal. Pilihan ganda langsung dikoreksi, uraian dicocokkan dengan poin kunci jawaban dari modul.</p></header>
+    ${asesmen()}
   </div>`;
 }
 
@@ -423,15 +370,13 @@ type PRow = { g: string } | { h: Hit; k: number };
 let INDEX: Hit[] = [];
 function buildIndex() {
   const h: Hit[] = [];
-  const pages: [string, string, string][] = [['#/timeline', 'Garis waktu', 'clock'], ['#/peta', 'Peta perjuangan', 'map'], ['#/kartu', 'Kartu hafalan', 'cards'], ['#/ujian', 'Ujian semester', 'target'], ['#/atlas', 'Tabel & glosarium', 'table']];
+  const pages: [string, string, string][] = [['#/timeline', 'Garis waktu', 'clock'], ['#/peta', 'Peta perjuangan', 'map'], ['#/kartu', 'Kartu hafalan', 'cards'], ['#/ujian', 'Asesmen', 'target']];
   pages.forEach(([href, t, i]) => h.push({ href, title: t, sub: 'Halaman', icon: i, tone: 'ink', group: 'Halaman', q: norm(t) }));
-  CHAPTERS.forEach(c => {
-    const r = ringkasFor(c.id);
-    h.push({ href: `#/bab/${c.id}`, title: `Bab ${c.id}: ${c.fullTitle}`, sub: plain(r?.tagline ?? c.intro), icon: iconOf(c.id), tone: toneOf(c.id), group: 'Bab', q: norm(c.fullTitle + ' ' + c.title + ' ' + (r?.tagline ?? '')) });
-    c.sections.forEach(s => h.push({ href: `#/bab/${c.id}/materi/${s.id}`, title: s.title, sub: `Bab ${c.id} · ${s.number} · ${plain(s.lead).slice(0, 120)}`, icon: 'book', tone: toneOf(c.id), group: 'Materi', q: norm(s.title + ' ' + s.search + ' ' + plain(s.lead)) }));
-  });
-  TIMELINE.forEach(e => h.push({ href: `#/bab/${e.chapter}`, title: `${e.date}: ${e.title}`, sub: e.text, icon: 'calendar', tone: toneOf(e.chapter), group: 'Peristiwa', q: norm(e.date + ' ' + e.title + ' ' + e.text) }));
-  FLASHCARDS.forEach(f => h.push({ href: `#/bab/${f.chapter}`, title: f.front, sub: plain(f.back), icon: DECK[f.deck].i, tone: toneOf(f.chapter), group: DECK[f.deck].label, q: norm(f.front + ' ' + f.back) }));
+  const c = chapterById(CH)!; const r = ringkasFor(CH);
+  h.push({ href: `#/bab/${CH}`, title: `Bab III: ${c.fullTitle}`, sub: plain(r?.tagline ?? c.intro), icon: 'swords', tone: toneOf(CH), group: 'Bab', q: norm(c.fullTitle + ' ' + (r?.tagline ?? '')) });
+  c.sections.forEach(s => h.push({ href: secHref(s.id), title: s.title, sub: `${s.number} · ${plain(s.lead).slice(0, 120)}`, icon: 'book', tone: partTone(s.part!), group: 'Materi', q: norm(s.title + ' ' + s.search) }));
+  TIMELINE.forEach(e => h.push({ href: secHref(e.sec), title: `${e.date}: ${e.title}`, sub: e.text, icon: 'calendar', tone: partTone(e.phase), group: 'Peristiwa', q: norm(e.date + ' ' + e.title + ' ' + e.text) }));
+  FLASHCARDS.forEach(f => h.push({ href: secHref(f.sec), title: f.front, sub: plain(f.back), icon: DECK[f.deck].i, tone: partTone(f.part), group: DECK[f.deck].label, q: norm(f.front + ' ' + f.back) }));
   INDEX = h;
 }
 function hl(text: string, terms: string[]) {
@@ -464,7 +409,7 @@ function openSearch() {
     groups.forEach((arr, g) => { rows.push({ g }); arr.forEach(h => { hitIdx.push(rows.length); rows.push({ h, k: k++ }); }); });
     sel = 0; res.scrollTop = 0;
     $('#pal-count')!.textContent = terms.length ? `${hits.length} hasil` : 'Ketik untuk mencari';
-    if (!hits.length) { list.setItems([]); res.innerHTML = `<div class="pal-empty">Tidak ada hasil untuk &ldquo;${esc(raw)}&rdquo;. Coba <b>Linggarjati</b> atau <b>BPUPKI</b>.</div>`; return; }
+    if (!hits.length) { list.setItems([]); res.innerHTML = `<div class="pal-empty">Tidak ada hasil untuk &ldquo;${esc(raw)}&rdquo;. Coba <b>Linggarjati</b> atau <b>Mallaby</b>.</div>`; return; }
     if (!res.contains(list.spacer)) { res.innerHTML = ''; res.append(list.spacer); }
     list.setItems(rows); updateBars();
   };
@@ -483,7 +428,6 @@ function openSearch() {
    ROUTER
    ============================================================= */
 let io: IntersectionObserver | null = null;
-let spy: IntersectionObserver | null = null;
 let lastPath = '';
 let lastCh = 0;
 
@@ -494,7 +438,6 @@ function parse() {
 
 function pageHTML(parts: string[]) {
   if (!parts.length) return home();
-  if (parts[0] === 'bab' && !parts[1]) return babList();
   if (parts[0] === 'bab') {
     const tab = (parts[2] as Tab) || 'ringkas';
     return chapter(Number(parts[1]), ['ringkas', 'materi', 'latihan'].includes(tab) ? tab : 'ringkas');
@@ -502,7 +445,6 @@ function pageHTML(parts: string[]) {
   if (parts[0] === 'timeline') return timeline();
   if (parts[0] === 'peta') return peta();
   if (parts[0] === 'kartu') { if (!FC.queue.length && FC.i === 0) buildDeck(); return kartu(); }
-  if (parts[0] === 'atlas') return atlas();
   if (parts[0] === 'ujian') return ujian();
   return notFound();
 }
@@ -510,13 +452,14 @@ function pageHTML(parts: string[]) {
 function afterRender(root: ParentNode, animateReveal: boolean) {
   initHScroll(root); initLazy(root);
   $$<HTMLElement>('.prose .table-scroll, .tbl-wrap', root as HTMLElement).forEach(t => attachScrollbar(t, 'x'));
-  const toc = $<HTMLElement>('.lk-toc'); if (toc) attachScrollbar(toc, 'y');
+  if ($('.rd')) onDispose(mountReader());
   observe(animateReveal);
   const run = mounts; mounts = []; run.forEach(f => f());
 }
 
 function render() {
   const parts = parse();
+  if (parts[0] === 'bab' && parts[1] !== String(CH)) { location.replace(`#/bab/${CH}${parts[2] ? '/' + parts.slice(2).join('/') : ''}`); return; }
   const path = parts.slice(0, 3).join('/');
   const changed = path !== lastPath;
   const ch = parts[0] === 'bab' && parts[1] ? Number(parts[1]) : 0;
@@ -528,7 +471,6 @@ function render() {
     resetQuiz(); lastPath = path;
     disposers.forEach(f => f()); disposers = [];
     $$<HTMLAnchorElement>('#ch-tabs a').forEach(a => a.setAttribute('aria-current', String(a.dataset.tab === tab)));
-    $$<HTMLAnchorElement>('.ch-switch a').forEach(a => { const id = a.getAttribute('href')!.split('/')[2]; a.setAttribute('href', `#/bab/${id}${tab !== 'ringkas' ? '/' + tab : ''}`); });
     moveIndicator($('#ch-tabs'), 'a[aria-current="true"]');
     const body = $('#ch-body')!;
     body.innerHTML = chapterBody(ch, tab);
@@ -548,7 +490,7 @@ function render() {
     app.innerHTML = pageHTML(parts);
     gcBars();
     drawNav();
-    if (target) requestAnimationFrame(() => { const el = document.getElementById(target); if (el) scrollTo({ top: el.getBoundingClientRect().top + scrollY - 90, behavior: 'auto' }); });
+    if (target) requestAnimationFrame(() => { const el = document.getElementById(target); if (el) scrollTo({ top: el.getBoundingClientRect().top + scrollY - 90 - (parseFloat(getComputedStyle(el).getPropertyValue('--scroll-extra')) || 0), behavior: 'auto' }); });
     else if (changed) scrollTo({ top: 0, behavior: 'auto' });
     afterRender(app, changed);
     updateBars();
@@ -557,12 +499,12 @@ function render() {
   if (changed && vt && !reduced() && lastPath !== '') { const t = vt.call(document, swap); t.ready?.catch(() => {}); t.finished?.catch(() => {}); }
   else swap();
 
-  const title = parts[0] === 'bab' && parts[1] ? `Bab ${parts[1]}: ${chapterById(Number(parts[1]))?.title ?? ''}` : ({ timeline: 'Garis waktu', peta: 'Peta', kartu: 'Kartu hafalan', atlas: 'Tabel & glosarium', ujian: 'Ujian', bab: 'Materi' } as Record<string, string>)[parts[0]] ?? '';
-  document.title = (title ? title + ' · ' : '') + 'Sejarah Indonesia XI';
+  const title = parts[0] === 'bab' ? ({ materi: 'Materi', latihan: 'Latihan' } as Record<string, string>)[parts[2]] ?? 'Ringkas' : ({ timeline: 'Garis waktu', peta: 'Peta', kartu: 'Kartu hafalan', ujian: 'Asesmen' } as Record<string, string>)[parts[0]] ?? '';
+  document.title = (title ? title + ' · ' : '') + 'Bab III Strategi Mempertahankan Kemerdekaan';
 }
 
 function observe(animate: boolean) {
-  io?.disconnect(); spy?.disconnect();
+  io?.disconnect();
   const els = $$('.reveal:not(.in)');
   if (!animate || reduced()) { els.forEach(e => e.classList.add('in')); }
   else {
@@ -572,13 +514,6 @@ function observe(animate: boolean) {
         .forEach(e => { (e.target as HTMLElement).style.setProperty('--d', String(Math.min(k++, 6))); e.target.classList.add('in'); io!.unobserve(e.target); });
     }, { rootMargin: '0px 0px -6% 0px', threshold: 0.01 });
     els.forEach(el => io!.observe(el));
-  }
-  const toc = $$<HTMLAnchorElement>('.lk-toc a');
-  if (toc.length) {
-    spy = new IntersectionObserver(es => es.forEach(e => {
-      if (e.isIntersecting) { const id = e.target.id.slice(2); toc.forEach(a => a.classList.toggle('active', a.dataset.sec === id)); }
-    }), { rootMargin: '-30% 0px -60% 0px' });
-    $$('.sec-card').forEach(s => spy!.observe(s));
   }
 }
 
@@ -597,6 +532,7 @@ document.addEventListener('click', e => {
   if (!el) return;
   const act = el.dataset.act!;
   if (quizClick(act, el)) return;
+  if (readerClick(act, el)) return;
   switch (act) {
     case 'scroll': { const t = document.getElementById(el.dataset.to!); if (t) scrollToEl(t); break; }
     case 'tl': {
@@ -615,6 +551,12 @@ document.addEventListener('click', e => {
       pinList?.setItems(PINS.filter(p => !pinOff.has(p.kind)));
       break;
     }
+    case 'qset': {
+      qset = el.dataset.v as QSet; resetQuiz();
+      $$('[data-act="qset"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === qset)));
+      const body = $('#qset-body'); if (body) { body.innerHTML = setView(); body.classList.remove('swap'); void body.offsetWidth; body.classList.add('swap'); }
+      break;
+    }
     case 'fc-flip': fcFlip(); break;
     case 'fc-yes': fcMark(true); break;
     case 'fc-no': fcMark(false); break;
@@ -625,15 +567,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target as HTMLSelectElement;
-  if (t.id === 'fc-ch') { FC.ch = Number(t.value); buildDeck(); drawFc(1); }
-});
-document.addEventListener('input', e => {
-  const t = e.target as HTMLInputElement;
-  if (t.id === 'gl-q' && glList) {
-    const q = norm(t.value);
-    const items = GL().filter(g => norm(g.front + ' ' + g.back).includes(q));
-    glList.setItems(items); $('#gl-empty')!.hidden = items.length > 0; updateBars();
-  }
+  if (t.id === 'fc-ch') { FC.part = t.value as '' | Part; buildDeck(); drawFc(1); }
 });
 document.addEventListener('keydown', e => {
   const typing = /INPUT|TEXTAREA|SELECT/.test((e.target as HTMLElement).tagName);
@@ -649,8 +583,8 @@ document.addEventListener('keydown', e => {
 });
 window.addEventListener('quiz-start', (e: Event) => {
   const key = (e as CustomEvent).detail as string;
-  if (key === 'ujian') startQuiz(key, 'Ujian Akhir Semester', questionsOf(10));
-  else { const n = Number(key.split('-')[1]); startQuiz(key, `Latihan Bab ${n}`, questionsOf(n)); }
+  const S = SETS[key as QSet]; if (!S) return;
+  startQuiz(key, S.title, S.qs());
   const q = $('#quiz'); if (q) scrollToEl(q);
 });
 $('#open-search')!.addEventListener('click', openSearch);

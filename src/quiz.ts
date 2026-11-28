@@ -7,6 +7,7 @@ interface Session { key: string; title: string; qs: Question[]; i: number; ans: 
 let S: Session | null = null;
 
 const KIND: Record<Question['kind'], string> = { mcq: 'Pilihan ganda', tf: 'Benar atau salah', essay: 'Uraian' };
+const srcLabel = (q: Question) => `Modul: ${q.set === 'fisik' ? 'bersenjata' : 'diplomasi'} ${q.kind === 'essay' ? 'uraian ' + (q.no - 100) : 'no. ' + q.no}`;
 
 function score(q: Question, a?: Ans): number | null {
   if (!a) return null;
@@ -21,11 +22,9 @@ export function quizView(key: string, title: string, qs: Question[], tone: strin
     <div class="qz-start">
       <div class="qz-badge">${icon('target')}</div>
       <h2>${esc(title)}</h2>
-      <p>Pilihan ganda dan benar atau salah langsung dikoreksi. Untuk uraian, tulis jawabanmu lalu cocokkan dengan kunci jawaban.</p>
-      <div class="qz-kinds">
-        <div><b>${c.mcq}</b><span>Pilihan ganda</span></div>
-        <div><b>${c.tf}</b><span>Benar/Salah</span></div>
-        <div><b>${c.essay}</b><span>Uraian</span></div>
+      <p>${c.essay ? 'Pilihan ganda langsung dikoreksi. Untuk uraian, tulis jawabanmu lalu cocokkan dengan poin kunci jawaban.' : 'Setiap jawaban langsung dikoreksi dan diberi pembahasan singkat.'}</p>
+      <div class="qz-kinds" style="--n:${[c.mcq, c.tf, c.essay].filter(Boolean).length}">
+        ${c.mcq ? `<div><b>${c.mcq}</b><span>Pilihan ganda</span></div>` : ''}${c.tf ? `<div><b>${c.tf}</b><span>Benar/Salah</span></div>` : ''}${c.essay ? `<div><b>${c.essay}</b><span>Uraian</span></div>` : ''}
       </div>
       <button class="btn btn-primary btn-lg" data-act="qz-start">${icon('play')} Mulai ${qs.length} soal</button>
     </div></div>`;
@@ -83,8 +82,9 @@ function draw() {
     <div class="qz-top"><button class="icon-btn" data-act="qz-quit" aria-label="Keluar dari kuis">${icon('x')}</button><div class="bar"><i style="width:${(answeredCount / S.qs.length) * 100}%"></i></div><span class="count">${answeredCount}/${S.qs.length} dijawab</span></div>
     ${dots()}
     <article class="qz-card" aria-live="polite">
-      <div class="qz-meta"><span class="qz-num">Soal ${S.i + 1}</span><span class="qz-kind">${KIND[q.kind]}</span></div>
+      <div class="qz-meta"><span class="qz-num">Soal ${S.i + 1}</span><span class="qz-kind">${KIND[q.kind]}</span><span class="qz-src">${srcLabel(q)}</span></div>
       <div class="qz-prompt">${esc(q.prompt)}</div>
+      ${q.img ? `<figure class="qz-img"><img src="${q.img}" alt="Gambar untuk soal ${S.i + 1}" decoding="async"></figure>` : ''}
       ${q.kind === 'essay'
         ? `<div class="essay"><label class="sr" for="essay">Jawabanmu</label><textarea id="essay" placeholder="Tulis jawabanmu di sini, boleh dalam bentuk poin…">${esc(a.text ?? '')}</textarea>
            ${a.shown ? '' : `<div class="self"><button class="btn btn-dark btn-sm" data-act="qz-show">${icon('book')} Lihat kunci jawaban</button></div>`}</div>`

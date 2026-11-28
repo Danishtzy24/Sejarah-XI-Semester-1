@@ -32,7 +32,8 @@ export function smoothScrollTo(y: number, ms = 760) {
 }
 export function scrollToEl(el: Element, offset = 0) {
   const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 68;
-  smoothScrollTo(el.getBoundingClientRect().top + scrollY - navH - 16 - offset);
+  const extra = parseFloat(getComputedStyle(el).getPropertyValue('--scroll-extra')) || 0;
+  smoothScrollTo(el.getBoundingClientRect().top + scrollY - navH - 16 - extra - offset);
 }
 
 /* =============================================================

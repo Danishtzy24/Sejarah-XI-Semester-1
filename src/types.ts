@@ -1,3 +1,4 @@
+export type Part = 'fisik' | 'diplomasi';
 export interface Detail { title: string; html: string; }
 export interface LessonSection {
   id: string;
@@ -7,6 +8,9 @@ export interface LessonSection {
   details: Detail[];
   search: string;
   extra?: boolean;
+  part?: Part;
+  date?: string;
+  sum?: string;
 }
 export interface Chapter {
   id: number;
@@ -24,7 +28,10 @@ export interface Option { id: string; html: string; text: string; }
 export interface Question {
   id: string;
   chapter: number;
+  set: Part;
+  no: number;
   prompt: string;
+  img?: string;
   kind: 'mcq' | 'tf' | 'essay';
   options: Option[];
   correct: string;
@@ -67,18 +74,6 @@ export interface Ringkas {
 }
 
 /* ---------- Atlas ---------- */
-export interface TimelineEvent { date: string; year: number; title: string; text: string; chapter: number; phase: string; big?: boolean; }
-export interface Flashcard { deck: 'tokoh' | 'istilah' | 'tanggal'; front: string; back: string; chapter: number; }
-export interface MapPin { id: string; name: string; lon: number; lat: number; kind: 'jepang' | 'sekutu' | 'belanda' | 'politik' | 'proklamasi'; date: string; title: string; text: string; chapter: number; dx?: number; dy?: number; }
-
-/* ---------- Progress ---------- */
-export interface QuizRecord { best: number; last: number; attempts: number; }
-export interface Progress {
-  version: 2;
-  read: Record<string, boolean>;        // section id -> read
-  ringkas: Record<string, boolean>;     // chapter -> viewed ringkas
-  quiz: Record<string, QuizRecord>;     // chapter key -> record
-  cards: Record<string, 'hafal' | 'belum'>;
-  theme?: 'light' | 'dark';
-  last?: string;                        // last route
-}
+export interface TimelineEvent { date: string; year: number; title: string; text: string; chapter: number; phase: Part; sec: string; big?: boolean; }
+export interface Flashcard { deck: 'tokoh' | 'istilah' | 'tanggal'; front: string; back: string; chapter: number; part: Part; sec: string; }
+export interface MapPin { id: string; name: string; lon: number; lat: number; kind: 'jepang' | 'sekutu' | 'belanda' | 'politik'; date: string; title: string; text: string; chapter: number; sec: string; dx?: number; dy?: number; }

@@ -81,7 +81,7 @@ export const icon = (n: string, cls = 'ico') => `<svg class="${cls}" viewBox="0 
 export function hydrateIcons(root: ParentNode = document) { $$('[data-i]', root).forEach(el => { el.innerHTML = icon(el.getAttribute('data-i')!); el.removeAttribute('data-i'); }); }
 
 /* ---------- course meta ---------- */
-export const CHAPTERS = COURSE.chapters.filter(c => c.id <= 8);
+export const CHAPTERS = COURSE.chapters;
 export const chapterById = (n: number) => COURSE.chapters.find(c => c.id === n);
 export const toneOf = (n: number): Tone => RINGKAS.find(r => r.chapter === n)?.tone ?? 'ink';
 export const iconOf = (n: number): string => RINGKAS.find(r => r.chapter === n)?.icon ?? 'book';
@@ -91,8 +91,8 @@ export const pad = (n: number) => String(n).padStart(2, '0');
 
 /* ---------- preferensi (hanya tema) ---------- */
 const KEY = 'sejarah-xi-v2';
-export const prefs: { theme?: 'light' | 'dark' } = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } })();
-export function savePrefs() { try { localStorage.setItem(KEY, JSON.stringify({ theme: prefs.theme })); } catch { /* privat */ } }
+export const prefs: { theme?: 'light' | 'dark'; fs?: 's' | 'm' | 'l' } = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } })();
+export function savePrefs() { try { localStorage.setItem(KEY, JSON.stringify({ theme: prefs.theme, fs: prefs.fs })); } catch { /* privat */ } }
 
 /* ---------- misc ---------- */
 export const AV_COLORS = ['#c8372c', '#17867f', '#2f6bd1', '#7a4fd4', '#c97d12', '#2d8a55', '#b5466b', '#3d5a80'];
